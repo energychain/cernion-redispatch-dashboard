@@ -67,11 +67,11 @@ class CernionAPI {
     } catch (e) { e.isCORS = e.message.indexOf('Failed') >= 0; throw e; }
   }
   async getRedispatchStatus() {
-    try { return await this.get('/redispatch/audits'); }
+    try { return await this.get('api/redispatch/audits'); }
     catch (e) { return { success: true, ...DEMO_REDISPATCH, anlagen: DEMO_ANLAGEN }; }
   }
   async getRedispatchSchedule() {
-    try { return await this.get('/redispatch/schedule'); }
+    try { return await this.get('api/redispatch/audits'); }
     catch (e) { return { success: true, schedule: DEMO_CURTAILMENT }; }
   }
 }
