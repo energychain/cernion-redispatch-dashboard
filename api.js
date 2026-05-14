@@ -1,5 +1,6 @@
 /**
  * Redispatch Dashboard — API Client + Demo-Daten
+ * ES5-konform: Funktions-Konstruktor + Promise-Chains
  */
 var CERNION_CONFIG_KEY = 'cernion.api.config';
 
@@ -39,42 +40,71 @@ for (var i = 0; i < 96; i++) {
   DEMO_CURTAILMENT.push({ ts: "2026-05-12T" + hh + ":" + mm + ":00Z", abgerufenKw: Math.round(val * 100) / 100, potenzialKw: 2840 });
 }
 
-class CernionAPI {
-  constructor() {
-    this.config = this.loadConfig();
-    this.config.baseUrl = (this.config.baseUrl || 'https://api.cernion.de/').replace(/\/api\/$/, '').replace(/\/$/, '') + '/';
-  }
-  loadConfig() {
-    try {
-      var raw = localStorage.getItem(CERNION_CONFIG_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch (e) {}
-    return { baseUrl: 'https://api.cernion.de/', tenantId: 'agentic-hackathon', token: '' };
-  }
-  saveConfig(cfg) {
-    for (var k in cfg) this.config[k] = cfg[k];
-    localStorage.setItem(CERNION_CONFIG_KEY, JSON.stringify(this.config));
-  }
-  get headers() {
-    var h = { 'Content-Type': 'application/json', 'x-tenant-id': this.config.tenantId };
-    if (this.config.token) h['Authorization'] = 'Bearer ' + this.config.token;
-    return h;
-  }
-  async get(endpoint) {
-    try {
-      var res = await fetch(this.config.baseUrl + endpoint, { headers: this.headers });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.json();
-    } catch (e) { e.isCORS = e.message.indexOf('Failed') >= 0; throw e; }
-  }
-  async getRedispatchStatus() {
-    try { return await this.get('api/redispatch/audits'); }
-    catch (e) { return { success: true, ...DEMO_REDISPATCH, anlagen: DEMO_ANLAGEN }; }
-  }
-  async getRedispatchSchedule() {
-    try { return await this.get('api/redispatch/audits'); }
-    catch (e) { return { success: true, schedule: DEMO_CURTAILMENT }; }
-  }
+function CernionAPI() {
+  this.config = this.loadConfig();
+  this.config.baseUrl = (this.config.baseUrl || 'https://api.cernion.de/').replace(/\/api\/\s*$/, '/').replace(/\/+$/, '') + '/';
 }
+
+CernionAPI.prototype.loadConfig = function() {
+  try {
+    var raw = localStorage.getItem(CERNION_CONFIG_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { baseUrl: 'https://api.cernion.de/', tenantId: 'agentic-hackathon', token: '' };
+};
+
+CernionAPI.prototype.saveConfig = function(cfg) {
+  for (var k in cfg) this.config[k] = cfg[k];
+  localStorage.setItem(CERNION_CONFIG_KEY, JSON.stringify(this.config));
+};
+
+CernionAPI.prototype.getHeaders = function() {
+  var h = { 'Content-Type': 'application/json', 'x-tenant-id': this.config.tenantId };
+  if (this.config.token) h['Authorization'] = 'Bearer ' + this.config.token;
+  return h;
+};
+
+CernionAPI.prototype.get = function(endpoint) {
+  var self = this;
+  return fetch(this.config.baseUrl + endpoint, { headers: this.getHeaders() }).then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).catch(function(e) {
+    e.isCORS = e.message.indexOf('Failed') >= 0;
+    throw e;
+  });
+};
+
+CernionAPI.prototype.getRedispatchStatus = function() {
+  var self = this;
+  return this.get('api/redispatch/audits').then(function(result) {
+    return result;
+  }).catch(function(e) {
+    console.warn('Redispatch API Fehler, Demo-Modus:', e.message);
+    var demo = {};
+    for (var k in DEMO_REDISPATCH) demo[k] = DEMO_REDISPATCH[k];
+    demo.anlagen = DEMO_ANLAGEN;
+    return demo;
+  });
+};
+
+CernionAPI.prototype.getRedispatchSchedule = function() {
+  var self = this;
+  return this.get('api/redispatch/audits').then(function(result) {
+    return result;
+  }).catch(function(e) {
+    console.warn('Redispatch Schedule Fehler, Demo-Modus:', e.message);
+    return { schedule: DEMO_CURTAILMENT };
+  });
+};
+
+CernionAPI.prototype.testConnection = function() {
+  var self = this;
+  return this.get('api/openapi.json').then(function() {
+    return { ok: true };
+  }).catch(function(e) {
+    return { ok: false, error: e.message };
+  });
+};
 
 var api = new CernionAPI();
